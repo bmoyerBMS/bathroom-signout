@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bathroom Sign-Out</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1a1f2e" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+    :root {
+      --bg:        #1a1f2e;
+      --surface:   #242938;
+      --border:    #2e3448;
+      --accent:    #4f8ef7;
+      --accent-dim:#2a4a8a;
+      --success:   #34d399;
+      --danger:    #f87171;
+      --text:      #e8ecf4;
+      --muted:     #7a8299;
+      --key-bg:    #2e3448;
+      --key-hover: #3a4160;
+      --key-active:#4f8ef7;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── SCREENS ── */
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.25s ease;
+    }
+    .screen.hidden { opacity: 0; pointer-events: none; }
+
+    /* ── KEYPAD SCREEN ── */
+    #screen-keypad {
+      gap: 2rem;
+    }
+
+    .room-badge {
+      position: absolute;
+      top: 1.25rem;
+      left: 1.5rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .sync-indicator {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .sync-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+    .sync-dot.offline { background: var(--danger); }
+
+    .app-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .pin-display {
+      display: flex;
+      gap: 1rem;
+    }
+    .pin-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .pin-dot.filled {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      width: 280px;
+    }
+
+    .key {
+      background: var(--key-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 500;
+      height: 72px;
+      cursor: pointer;
+      transition: background 0.1s, transform 0.08s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .key:hover  { background: var(--key-hover); }
+    .key:active { background: var(--key-active); transform: scale(0.95); }
+
+    .key.delete {
+      font-size: 1.2rem;
+      color: var(--muted);
+    }
+    .key.zero { grid-column: 2; }
+
+    .hint {
+      font-size: 0.85rem;
+      color: var(--muted);
+      height: 1.2rem;
+      transition: color 0.2s;
+    }
+    .hint.error { color: var(--danger); }
+
+    /* ── OUT SCREEN ── */
+    #screen-out {
+      background: var(--bg);
+      gap: 1.5rem;
+      text-align: center;
+    }
+
+    .out-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .out-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(3rem, 10vw, 6rem);
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--text);
+    }
+
+    .out-time {
+      font-size: 1rem;
+      color: var(--muted);
+    }
+
+    .out-clock {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(2rem, 6vw, 3.5rem);
+      font-weight: 300;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .out-divider {
+      width: 60px;
+      height: 2px;
+      background: var(--accent-dim);
+      border-radius: 2px;
+    }
+
+    .return-hint {
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      color: var(--border);
+      letter-spacing: 0.05em;
+    }
+
+    /* ── FEEDBACK SCREEN ── */
+    #screen-feedback {
+      gap: 1.25rem;
+      text-align: center;
+    }
+
+    .feedback-icon {
+      font-size: 4rem;
+      line-height: 1;
+    }
+
+    .feedback-msg {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 2rem;
+      font-weight: 700;
+    }
+    .feedback-msg.out  { color: var(--accent); }
+    .feedback-msg.back { color: var(--success); }
+
+    .feedback-sub {
+      font-size: 1rem;
+      color: var(--muted);
+    }
+
+    /* ── OFFLINE BANNER ── */
+    #offline-banner {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: #7c3a1e;
+      color: #fed7aa;
+      font-size: 0.78rem;
+      text-align: center;
+      padding: 0.4rem;
+      display: none;
+    }
+    #offline-banner.visible { display: block; }
+
+    /* ── SETUP SCREEN ── */
+    #screen-setup {
+      gap: 1.5rem;
+      padding: 2rem;
+      max-width: 420px;
+      width: 100%;
+    }
+
+    .setup-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+
+    .setup-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      width: 100%;
+    }
+
+    .setup-field label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .setup-field input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1rem;
+      padding: 0.75rem 1rem;
+      outline: none;
+      width: 100%;
+      font-family: 'Inter', sans-serif;
+    }
+    .setup-field input:focus { border-color: var(--accent); }
+
+    .btn-primary {
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      cursor: pointer;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.85rem 2rem;
+      width: 100%;
+      transition: opacity 0.15s;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+
+    .setup-error {
+      color: var(--danger);
+      font-size: 0.85rem;
+      min-height: 1.1rem;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── SETUP SCREEN (first run) ── -->
+<div class="screen hidden" id="screen-setup">
+  <div class="setup-title">Setup</div>
+  <p style="color:var(--muted);font-size:0.9rem;text-align:center">Enter your classroom info to get started. You only need to do this once.</p>
+
+  <div class="setup-field">
+    <label>Room Name or Number</label>
+    <input type="text" id="setup-room" placeholder="e.g. 101 or Ms. Johnson" />
+  </div>
+
+  <div class="setup-field">
+    <label>Apps Script Web App URL</label>
+    <input type="url" id="setup-url" placeholder="https://script.google.com/macros/s/..." />
+  </div>
+
+  <div class="setup-field">
+    <label>Roster Sheet URL</label>
+    <input type="url" id="setup-roster-url" placeholder="https://script.google.com/macros/s/..." />
+    <span style="color:var(--muted);font-size:0.75rem">Same URL as above if using one deployment</span>
+  </div>
+
+  <div class="setup-error" id="setup-error"></div>
+  <button class="btn-primary" onclick="saveSetup()">Save & Start</button>
+</div>
+
+<!-- ── KEYPAD SCREEN ── -->
+<div class="screen hidden" id="screen-keypad">
+  <div class="room-badge" id="room-label"></div>
+  <div class="sync-indicator">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span id="sync-label">Online</span>
+  </div>
+
+  <div class="app-title">Bathroom Sign-Out</div>
+
+  <div class="pin-display" id="pin-display">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+
+  <div class="keypad">
+    <button class="key" onclick="pressKey('1')">1</button>
+    <button class="key" onclick="pressKey('2')">2</button>
+    <button class="key" onclick="pressKey('3')">3</button>
+    <button class="key" onclick="pressKey('4')">4</button>
+    <button class="key" onclick="pressKey('5')">5</button>
+    <button class="key" onclick="pressKey('6')">6</button>
+    <button class="key" onclick="pressKey('7')">7</button>
+    <button class="key" onclick="pressKey('8')">8</button>
+    <button class="key" onclick="pressKey('9')">9</button>
+    <button class="key delete" onclick="pressDelete()">⌫</button>
+    <button class="key zero" onclick="pressKey('0')">0</button>
+  </div>
+
+  <div class="hint" id="hint"></div>
+</div>
+
+<!-- ── SIGNED OUT DISPLAY ── -->
+<div class="screen hidden" id="screen-out">
+  <div class="out-label">Currently Out</div>
+  <div class="out-name" id="out-name">—</div>
+  <div class="out-divider"></div>
+  <div class="out-time">Left at <strong id="out-departed">—</strong></div>
+  <div class="out-clock" id="out-clock">—</div>
+  <div class="return-hint">Enter PIN to sign back in</div>
+</div>
+
+<!-- ── FEEDBACK FLASH ── -->
+<div class="screen hidden" id="screen-feedback">
+  <div class="feedback-icon" id="feedback-icon"></div>
+  <div class="feedback-msg" id="feedback-msg"></div>
+  <div class="feedback-sub" id="feedback-sub"></div>
+</div>
+
+<!-- ── OFFLINE BANNER ── -->
+<div id="offline-banner">⚠ No internet — sign-outs are saved locally and will sync when connection returns</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  CONFIG (loaded from localStorage)
+// ─────────────────────────────────────────────
+let CFG = {
+  room: '',
+  scriptUrl: '',
+  rosterUrl: ''
+};
+
+// ─────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────
+let pinBuffer    = '';
+let roster       = {};   // { '1234': 'Jane Smith', ... }
+let currentlyOut = null; // { pin, name, timeOut, tripId }
+let clockInterval;
+let feedbackTimer;
+
+// ─────────────────────────────────────────────
+//  INDEXEDDB
+// ─────────────────────────────────────────────
+let db;
+
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('bathroom-signout', 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('queue')) {
+        d.createObjectStore('queue', { keyPath: 'id', autoIncrement: true });
+      }
+      if (!d.objectStoreNames.contains('state')) {
+        d.createObjectStore('state', { keyPath: 'key' });
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+function dbPut(store, value) {
+  return new Promise((res, rej) => {
+    const tx  = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).put(value);
+    req.onsuccess = () => res(req.result);
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+function dbGet(store, key) {
+  return new Promise((res, rej) => {
+    const tx  = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).get(key);
+    req.onsuccess = () => res(req.result);
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+function dbGetAll(store) {
+  return new Promise((res, rej) => {
+    const tx  = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+function dbDelete(store, key) {
+  return new Promise((res, rej) => {
+    const tx  = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).delete(key);
+    req.onsuccess = () => res();
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  SETUP
+// ─────────────────────────────────────────────
+function saveSetup() {
+  const room      = document.getElementById('setup-room').value.trim();
+  const scriptUrl = document.getElementById('setup-url').value.trim();
+  const rosterUrl = document.getElementById('setup-roster-url').value.trim();
+  const err       = document.getElementById('setup-error');
+
+  if (!room)      { err.textContent = 'Please enter a room name.'; return; }
+  if (!scriptUrl) { err.textContent = 'Please enter the Apps Script URL.'; return; }
+  if (!rosterUrl) { err.textContent = 'Please enter the Roster URL.'; return; }
+
+  CFG = { room, scriptUrl, rosterUrl };
+  localStorage.setItem('bso-config', JSON.stringify(CFG));
+  err.textContent = '';
+  startApp();
+}
+
+// ─────────────────────────────────────────────
+//  ROSTER
+// ─────────────────────────────────────────────
+async function loadRoster() {
+  try {
+    const resp = await fetch(`${CFG.rosterUrl}?action=getRoster`, { cache: 'no-store' });
+    const data = await resp.json();
+    if (data && data.roster) {
+      roster = data.roster; // { '1234': 'Jane Smith' }
+      await dbPut('state', { key: 'roster', value: roster });
+      console.log(`Roster loaded: ${Object.keys(roster).length} students`);
+    }
+  } catch (e) {
+    // Offline — load cached roster
+    const cached = await dbGet('state', 'roster');
+    if (cached) roster = cached.value;
+    console.warn('Using cached roster');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  KEYPAD LOGIC
+// ─────────────────────────────────────────────
+function pressKey(digit) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += digit;
+  updatePinDisplay();
+  if (pinBuffer.length === 4) handlePin();
+}
+
+function pressDelete() {
+  pinBuffer = pinBuffer.slice(0, -1);
+  updatePinDisplay();
+  setHint('');
+}
+
+function updatePinDisplay() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById(`d${i}`).classList.toggle('filled', i < pinBuffer.length);
+  }
+}
+
+function setHint(msg, isError = false) {
+  const el = document.getElementById('hint');
+  el.textContent = msg;
+  el.className = 'hint' + (isError ? ' error' : '');
+}
+
+async function handlePin() {
+  const pin = pinBuffer;
+  pinBuffer  = '';
+  updatePinDisplay();
+
+  // Look up student
+  const name = roster[pin];
+  if (!name) {
+    setHint('PIN not recognized — try again', true);
+    setTimeout(() => setHint(''), 2000);
+    return;
+  }
+
+  const now    = new Date();
+  const timeStr = fmtTime(now);
+
+  if (currentlyOut && currentlyOut.pin === pin) {
+    // ── SIGN IN ──
+    const duration = Math.round((now - new Date(currentlyOut.timeOut)) / 60000);
+    await logEvent({ pin, name, type: 'IN', time: now.toISOString(), tripId: currentlyOut.tripId, room: CFG.room });
+    currentlyOut = null;
+    await dbPut('state', { key: 'currentlyOut', value: null });
+    stopClock();
+    showFeedback('back', `👋`, `Welcome back, ${name.split(' ')[0]}!`, `Out for ${duration} min`);
+  } else if (currentlyOut) {
+    // Another student is already out
+    setHint(`${currentlyOut.name.split(' ')[0]} is still out`, true);
+    setTimeout(() => setHint(''), 2500);
+  } else {
+    // ── SIGN OUT ──
+    const tripId = `${Date.now()}-${pin}`;
+    await logEvent({ pin, name, type: 'OUT', time: now.toISOString(), tripId, room: CFG.room });
+    currentlyOut = { pin, name, timeOut: now.toISOString(), tripId };
+    await dbPut('state', { key: 'currentlyOut', value: currentlyOut });
+    showFeedback('out', `🚶`, `See you soon, ${name.split(' ')[0]}!`, `Signed out at ${timeStr}`);
+    setTimeout(() => showOutScreen(), 2000);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  SCREENS
+// ─────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+
+function showOutScreen() {
+  if (!currentlyOut) { showScreen('screen-keypad'); return; }
+  document.getElementById('out-name').textContent     = currentlyOut.name;
+  document.getElementById('out-departed').textContent = fmtTime(new Date(currentlyOut.timeOut));
+  showScreen('screen-out');
+  startClock();
+}
+
+function showFeedback(type, icon, msg, sub) {
+  clearTimeout(feedbackTimer);
+  document.getElementById('feedback-icon').textContent = icon;
+  const msgEl = document.getElementById('feedback-msg');
+  msgEl.textContent  = msg;
+  msgEl.className    = `feedback-msg ${type}`;
+  document.getElementById('feedback-sub').textContent  = sub;
+  showScreen('screen-feedback');
+  feedbackTimer = setTimeout(() => {
+    if (currentlyOut) showOutScreen();
+    else showScreen('screen-keypad');
+  }, 2500);
+}
+
+// ─────────────────────────────────────────────
+//  CLOCK on OUT screen
+// ─────────────────────────────────────────────
+function startClock() {
+  stopClock();
+  updateClock();
+  clockInterval = setInterval(updateClock, 1000);
+}
+
+function stopClock() { clearInterval(clockInterval); }
+
+function updateClock() {
+  if (!currentlyOut) return;
+  const elapsed = Math.floor((Date.now() - new Date(currentlyOut.timeOut)) / 1000);
+  const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+  const s = (elapsed % 60).toString().padStart(2, '0');
+  document.getElementById('out-clock').textContent = `${m}:${s}`;
+}
+
+// ─────────────────────────────────────────────
+//  LOGGING + SYNC QUEUE
+// ─────────────────────────────────────────────
+async function logEvent(record) {
+  // Always write to queue first
+  await dbPut('queue', { ...record, synced: false });
+  flushQueue();
+}
+
+async function flushQueue() {
+  if (!navigator.onLine || !CFG.scriptUrl) return;
+  const items = await dbGetAll('queue');
+  const pending = items.filter(i => !i.synced);
+  for (const item of pending) {
+    try {
+      const resp = await fetch(CFG.scriptUrl, {
+        method: 'POST',
+        body: JSON.stringify(item),
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (resp.ok) {
+        await dbDelete('queue', item.id);
+      }
+    } catch (e) {
+      break; // Still offline, stop trying
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  ONLINE / OFFLINE
+// ─────────────────────────────────────────────
+function updateOnlineStatus() {
+  const online = navigator.onLine;
+  const dot    = document.getElementById('sync-dot');
+  const lbl    = document.getElementById('sync-label');
+  const banner = document.getElementById('offline-banner');
+  dot.className    = 'sync-dot' + (online ? '' : ' offline');
+  lbl.textContent  = online ? 'Online' : 'Offline';
+  banner.className = online ? '' : 'visible';
+  if (online) flushQueue();
+}
+
+// ─────────────────────────────────────────────
+//  UTILS
+// ─────────────────────────────────────────────
+function fmtTime(d) {
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+// Tap out-screen to go to keypad (so a returning student can sign in)
+document.getElementById('screen-out').addEventListener('click', () => {
+  stopClock();
+  showScreen('screen-keypad');
+});
+
+// ─────────────────────────────────────────────
+//  BOOT
+// ─────────────────────────────────────────────
+async function startApp() {
+  const saved = localStorage.getItem('bso-config');
+  if (!saved) { showScreen('screen-setup'); return; }
+
+  CFG = JSON.parse(saved);
+  document.getElementById('room-label').textContent = `Room ${CFG.room}`;
+
+  await openDB();
+  await loadRoster();
+
+  // Restore currentlyOut state across reloads
+  const savedOut = await dbGet('state', 'currentlyOut');
+  if (savedOut && savedOut.value) {
+    currentlyOut = savedOut.value;
+    showOutScreen();
+  } else {
+    showScreen('screen-keypad');
+  }
+
+  window.addEventListener('online',  updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+  updateOnlineStatus();
+
+  // Reload roster every 5 minutes in case teacher updated it
+  setInterval(loadRoster, 5 * 60 * 1000);
+}
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(console.warn);
+}
+
+startApp();
+</script>
+</body>
+</html>
