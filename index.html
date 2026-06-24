@@ -1058,7 +1058,7 @@ async function signBackIn() {
   const now      = new Date();
   const duration = Math.round((now - new Date(currentlyOut.timeOut)) / 60000);
   const { pin, name, tripId } = currentlyOut;
-  await logEvent({ pin, name, type: 'IN', time: now.toISOString(), tripId, room: CFG.room });
+  await logEvent({ pin, name, type: 'IN', time: now.toISOString(), tripId, room: CFG.room, duration });
   currentlyOut = null;
   await dbPut('state', { key: 'currentlyOut', value: null });
   stopClock();
