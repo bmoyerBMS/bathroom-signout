@@ -148,53 +148,78 @@
 
     /* ── OUT SCREEN ── */
     #screen-out {
-      background: var(--bg);
-      gap: 1.5rem;
+      background: #000;
+      gap: 0;
       text-align: center;
+      padding: 1.5rem;
+      justify-content: space-between;
+    }
+
+    .out-top {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding-top: 1rem;
     }
 
     .out-label {
-      font-size: 0.85rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      color: var(--accent);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      color: #ffdd57;
       text-transform: uppercase;
     }
 
     .out-name {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: clamp(3rem, 10vw, 6rem);
+      font-size: clamp(4rem, 14vw, 10rem);
       font-weight: 700;
-      line-height: 1.05;
-      color: var(--text);
+      line-height: 1.0;
+      color: #ffffff;
+      word-break: break-word;
+      hyphens: auto;
+    }
+
+    .out-bottom {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding-bottom: 1.5rem;
+      width: 100%;
     }
 
     .out-time {
-      font-size: 1rem;
-      color: var(--muted);
+      font-size: 1.1rem;
+      color: #aaaaaa;
     }
 
     .out-clock {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: clamp(2rem, 6vw, 3.5rem);
+      font-size: clamp(2.5rem, 8vw, 5rem);
       font-weight: 300;
-      color: var(--muted);
-      letter-spacing: 0.04em;
+      color: #ffdd57;
+      letter-spacing: 0.06em;
     }
 
-    .out-divider {
-      width: 60px;
-      height: 2px;
-      background: var(--accent-dim);
-      border-radius: 2px;
+    .btn-return {
+      background: #ffdd57;
+      border: none;
+      border-radius: 16px;
+      color: #000;
+      cursor: pointer;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      padding: 1rem 3rem;
+      width: 90%;
+      max-width: 400px;
+      transition: opacity 0.15s, transform 0.1s;
+      letter-spacing: 0.02em;
     }
-
-    .return-hint {
-      margin-top: 1rem;
-      font-size: 0.8rem;
-      color: var(--border);
-      letter-spacing: 0.05em;
-    }
+    .btn-return:hover  { opacity: 0.9; }
+    .btn-return:active { transform: scale(0.97); }
 
     /* ── FEEDBACK SCREEN ── */
     #screen-feedback {
@@ -401,12 +426,15 @@
 
 <!-- ── SIGNED OUT DISPLAY ── -->
 <div class="screen hidden" id="screen-out">
-  <div class="out-label">Currently Out</div>
-  <div class="out-name" id="out-name">—</div>
-  <div class="out-divider"></div>
-  <div class="out-time">Left at <strong id="out-departed">—</strong></div>
-  <div class="out-clock" id="out-clock">—</div>
-  <div class="return-hint">Enter PIN to sign back in</div>
+  <div class="out-top">
+    <div class="out-label">🚶 Currently Out</div>
+    <div class="out-name" id="out-name">—</div>
+  </div>
+  <div class="out-bottom">
+    <div class="out-clock" id="out-clock">—</div>
+    <div class="out-time">Left at <strong id="out-departed">—</strong></div>
+    <button class="btn-return" onclick="signBackIn()">✋ I'm Back</button>
+  </div>
 </div>
 
 <!-- ── FEEDBACK FLASH ── -->
@@ -677,18 +705,11 @@ async function handlePin() {
   const now    = new Date();
   const timeStr = fmtTime(now);
 
-  if (currentlyOut && currentlyOut.pin === pin) {
-    // ── SIGN IN ──
-    const duration = Math.round((now - new Date(currentlyOut.timeOut)) / 60000);
-    await logEvent({ pin, name, type: 'IN', time: now.toISOString(), tripId: currentlyOut.tripId, room: CFG.room });
-    currentlyOut = null;
-    await dbPut('state', { key: 'currentlyOut', value: null });
-    stopClock();
-    showFeedback('back', `👋`, `Welcome back, ${name.split(' ')[0]}!`, `Out for ${duration} min`);
-  } else if (currentlyOut) {
-    // Another student is already out
-    setHint(`${currentlyOut.name.split(' ')[0]} is still out`, true);
-    setTimeout(() => setHint(''), 2500);
+  if (currentlyOut) {
+    // Someone is out — direct them to the button
+    setHint(`${currentlyOut.name.split(' ')[0]} is out — use the "I'm Back" button`, true);
+    setTimeout(() => setHint(''), 3000);
+    return;
   } else {
     // ── SIGN OUT ──
     const tripId = `${Date.now()}-${pin}`;
@@ -799,11 +820,18 @@ function fmtTime(d) {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-// Tap out-screen to go to keypad (so a returning student can sign in)
-document.getElementById('screen-out').addEventListener('click', () => {
+// Sign back in via the "I'm Back" button — no PIN needed
+async function signBackIn() {
+  if (!currentlyOut) return;
+  const now      = new Date();
+  const duration = Math.round((now - new Date(currentlyOut.timeOut)) / 60000);
+  const { pin, name, tripId } = currentlyOut;
+  await logEvent({ pin, name, type: 'IN', time: now.toISOString(), tripId, room: CFG.room });
+  currentlyOut = null;
+  await dbPut('state', { key: 'currentlyOut', value: null });
   stopClock();
-  showScreen('screen-keypad');
-});
+  showFeedback('back', '👋', `Welcome back, ${name.split(' ')[0]}!`, `Out for ${duration} min`);
+}
 
 // ─────────────────────────────────────────────
 //  BOOT
@@ -839,6 +867,15 @@ async function startApp() {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(console.warn);
 }
+
+// ── Keyboard support ──
+document.addEventListener('keydown', e => {
+  // Only active on keypad screen
+  const keypadVisible = !document.getElementById('screen-keypad').classList.contains('hidden');
+  if (!keypadVisible) return;
+  if (e.key >= '0' && e.key <= '9') pressKey(e.key);
+  if (e.key === 'Backspace' || e.key === 'Delete') pressDelete();
+});
 
 startApp();
 </script>
