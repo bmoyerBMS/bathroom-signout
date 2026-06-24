@@ -359,9 +359,121 @@
     }
     .test-result.ok  { color: var(--success); }
     .test-result.err { color: var(--danger); }
+
+    /* ── PIN LOCK SCREEN ── */
+    #screen-lock {
+      gap: 2rem;
+      background: var(--bg);
+    }
+
+    .lock-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .lock-sub {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: -1rem;
+    }
+
+    .lock-dots {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .lock-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .lock-dot.filled {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .lock-dot.error {
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+
+    .lock-keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.6rem;
+      width: 240px;
+    }
+
+    .lock-key {
+      background: var(--key-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 500;
+      height: 60px;
+      cursor: pointer;
+      transition: background 0.1s, transform 0.08s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lock-key:hover  { background: var(--key-hover); }
+    .lock-key:active { background: var(--key-active); transform: scale(0.95); }
+    .lock-key.delete { font-size: 1rem; color: var(--muted); }
+    .lock-key.zero   { grid-column: 2; }
+
+    .lock-error {
+      font-size: 0.85rem;
+      color: var(--danger);
+      min-height: 1.1rem;
+    }
+
+    .lock-cancel {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: 'Inter', sans-serif;
+    }
+    .lock-cancel:hover { color: var(--text); }
   </style>
 </head>
 <body>
+
+<!-- ── TEACHER PIN LOCK ── -->
+<div class="screen hidden" id="screen-lock">
+  <div class="lock-title">🔒 Teacher Access</div>
+  <div class="lock-sub">Enter your teacher PIN to continue</div>
+  <div class="lock-dots" id="lock-dots">
+    <div class="lock-dot" id="ld0"></div>
+    <div class="lock-dot" id="ld1"></div>
+    <div class="lock-dot" id="ld2"></div>
+    <div class="lock-dot" id="ld3"></div>
+  </div>
+  <div class="lock-keypad">
+    <button class="lock-key" onclick="lockKey('1')">1</button>
+    <button class="lock-key" onclick="lockKey('2')">2</button>
+    <button class="lock-key" onclick="lockKey('3')">3</button>
+    <button class="lock-key" onclick="lockKey('4')">4</button>
+    <button class="lock-key" onclick="lockKey('5')">5</button>
+    <button class="lock-key" onclick="lockKey('6')">6</button>
+    <button class="lock-key" onclick="lockKey('7')">7</button>
+    <button class="lock-key" onclick="lockKey('8')">8</button>
+    <button class="lock-key" onclick="lockKey('9')">9</button>
+    <button class="lock-key delete" onclick="lockDelete()">⌫</button>
+    <button class="lock-key zero" onclick="lockKey('0')">0</button>
+  </div>
+  <div class="lock-error" id="lock-error"></div>
+  <button class="lock-cancel" onclick="lockCancel()">Cancel</button>
+</div>
 
 <!-- ── SETUP SCREEN (first run) ── -->
 <div class="screen hidden" id="screen-setup">
@@ -381,6 +493,12 @@
   <div class="setup-field">
     <label>Roster URL (usually same as above)</label>
     <input type="url" id="setup-roster-url" placeholder="https://script.google.com/macros/s/.../exec" />
+  </div>
+
+  <div class="setup-field">
+    <label>Teacher PIN (4 digits — protects this settings screen)</label>
+    <input type="password" id="setup-teacher-pin" placeholder="Choose a 4-digit PIN" maxlength="4" inputmode="numeric" />
+    <span style="color:var(--muted);font-size:0.75rem">Leave blank to keep your current PIN</span>
   </div>
 
   <div class="test-result" id="test-result"></div>
@@ -539,7 +657,69 @@ function settingsTap() {
   settingsTapTimer = setTimeout(() => { settingsTapCount = 0; }, 1500);
   if (settingsTapCount >= 3) {
     settingsTapCount = 0;
+    const hasPin = !!localStorage.getItem('bso-teacher-pin');
+    if (hasPin) {
+      showLockScreen();
+    } else {
+      // No PIN set yet (first run) — go straight to setup
+      openSetup();
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  TEACHER PIN LOCK SCREEN
+// ─────────────────────────────────────────────
+let lockBuffer = '';
+
+function showLockScreen() {
+  lockBuffer = '';
+  updateLockDots();
+  document.getElementById('lock-error').textContent = '';
+  showScreen('screen-lock');
+}
+
+function lockKey(digit) {
+  if (lockBuffer.length >= 4) return;
+  lockBuffer += digit;
+  updateLockDots();
+  if (lockBuffer.length === 4) checkLockPin();
+}
+
+function lockDelete() {
+  lockBuffer = lockBuffer.slice(0, -1);
+  updateLockDots(false);
+  document.getElementById('lock-error').textContent = '';
+}
+
+function lockCancel() {
+  lockBuffer = '';
+  if (currentlyOut) showOutScreen();
+  else showScreen('screen-keypad');
+}
+
+function updateLockDots(error = false) {
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById(`ld${i}`);
+    dot.className = 'lock-dot';
+    if (error) dot.classList.add('error');
+    else if (i < lockBuffer.length) dot.classList.add('filled');
+  }
+}
+
+function checkLockPin() {
+  const stored = localStorage.getItem('bso-teacher-pin');
+  if (lockBuffer === stored) {
+    lockBuffer = '';
     openSetup();
+  } else {
+    updateLockDots(true);
+    document.getElementById('lock-error').textContent = 'Incorrect PIN — try again';
+    setTimeout(() => {
+      lockBuffer = '';
+      updateLockDots();
+      document.getElementById('lock-error').textContent = '';
+    }, 1500);
   }
 }
 
@@ -552,6 +732,7 @@ function openSetup() {
     document.getElementById('setup-url').value        = cfg.scriptUrl  || '';
     document.getElementById('setup-roster-url').value = cfg.rosterUrl  || '';
   }
+  document.getElementById('setup-teacher-pin').value  = '';
   document.getElementById('setup-error').textContent  = '';
   document.getElementById('test-result').textContent  = '';
   document.getElementById('test-result').className    = 'test-result';
@@ -580,14 +761,25 @@ async function testConnection() {
 }
 
 function saveSetup() {
-  const room      = document.getElementById('setup-room').value.trim();
-  const scriptUrl = document.getElementById('setup-url').value.trim();
-  const rosterUrl = document.getElementById('setup-roster-url').value.trim();
-  const err       = document.getElementById('setup-error');
+  const room       = document.getElementById('setup-room').value.trim();
+  const scriptUrl  = document.getElementById('setup-url').value.trim();
+  const rosterUrl  = document.getElementById('setup-roster-url').value.trim();
+  const teacherPin = document.getElementById('setup-teacher-pin').value.trim();
+  const err        = document.getElementById('setup-error');
 
   if (!room)      { err.textContent = 'Please enter a room name.'; return; }
   if (!scriptUrl) { err.textContent = 'Please enter the Apps Script URL.'; return; }
   if (!rosterUrl) { err.textContent = 'Please enter the Roster URL.'; return; }
+
+  // Validate new PIN if provided
+  if (teacherPin) {
+    if (!/^\d{4}$/.test(teacherPin)) {
+      err.textContent = 'Teacher PIN must be exactly 4 digits.'; return;
+    }
+    localStorage.setItem('bso-teacher-pin', teacherPin);
+  } else if (!localStorage.getItem('bso-teacher-pin')) {
+    err.textContent = 'Please set a 4-digit teacher PIN.'; return;
+  }
 
   CFG = { room, scriptUrl, rosterUrl };
   localStorage.setItem('bso-config', JSON.stringify(CFG));
@@ -899,11 +1091,17 @@ if ('serviceWorker' in navigator) {
 
 // ── Keyboard support ──
 document.addEventListener('keydown', e => {
-  // Only active on keypad screen
   const keypadVisible = !document.getElementById('screen-keypad').classList.contains('hidden');
-  if (!keypadVisible) return;
-  if (e.key >= '0' && e.key <= '9') pressKey(e.key);
-  if (e.key === 'Backspace' || e.key === 'Delete') pressDelete();
+  const lockVisible   = !document.getElementById('screen-lock').classList.contains('hidden');
+
+  if (keypadVisible) {
+    if (e.key >= '0' && e.key <= '9') pressKey(e.key);
+    if (e.key === 'Backspace' || e.key === 'Delete') pressDelete();
+  } else if (lockVisible) {
+    if (e.key >= '0' && e.key <= '9') lockKey(e.key);
+    if (e.key === 'Backspace' || e.key === 'Delete') lockDelete();
+    if (e.key === 'Escape') lockCancel();
+  }
 });
 
 startApp();
