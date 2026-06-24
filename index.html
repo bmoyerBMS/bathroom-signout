@@ -496,6 +496,12 @@
   </div>
 
   <div class="setup-field">
+    <label>API Key (from your Apps Script)</label>
+    <input type="text" id="setup-api-key" placeholder="e.g. lunar-ferret-54" autocomplete="off" />
+    <span style="color:var(--muted);font-size:0.75rem">Must match the SECRET_KEY in Code.gs</span>
+  </div>
+
+  <div class="setup-field">
     <label>Teacher PIN (4 digits — protects this settings screen)</label>
     <input type="password" id="setup-teacher-pin" placeholder="Choose a 4-digit PIN" maxlength="4" inputmode="numeric" />
     <span style="color:var(--muted);font-size:0.75rem">Leave blank to keep your current PIN</span>
@@ -731,6 +737,7 @@ function openSetup() {
     document.getElementById('setup-room').value       = cfg.room       || '';
     document.getElementById('setup-url').value        = cfg.scriptUrl  || '';
     document.getElementById('setup-roster-url').value = cfg.rosterUrl  || '';
+    document.getElementById('setup-api-key').value    = cfg.apiKey     || '';
   }
   document.getElementById('setup-teacher-pin').value  = '';
   document.getElementById('setup-error').textContent  = '';
@@ -745,7 +752,8 @@ async function testConnection() {
   if (!url) { res.textContent = 'Enter a URL first.'; res.className = 'test-result err'; return; }
   res.textContent = 'Testing...'; res.className = 'test-result';
   try {
-    const data = await fetchViaJsonp(url + '?action=getRoster');
+    const apiKey = document.getElementById('setup-api-key').value.trim();
+    const data = await fetchViaJsonp(url + '?action=getRoster&key=' + encodeURIComponent(apiKey));
     if (data && data.roster) {
       const count = Object.keys(data.roster).length;
       res.textContent = `✓ Connected! Found ${count} student${count !== 1 ? 's' : ''} in roster.`;
@@ -764,16 +772,18 @@ function saveSetup() {
   const room       = document.getElementById('setup-room').value.trim();
   const scriptUrl  = document.getElementById('setup-url').value.trim();
   const rosterUrl  = document.getElementById('setup-roster-url').value.trim();
+  const apiKey     = document.getElementById('setup-api-key').value.trim();
   const teacherPin = document.getElementById('setup-teacher-pin').value.trim();
   const err        = document.getElementById('setup-error');
 
   if (!room)      { err.textContent = 'Please enter a room name.'; return; }
   if (!scriptUrl) { err.textContent = 'Please enter the Apps Script URL.'; return; }
   if (!rosterUrl) { err.textContent = 'Please enter the Roster URL.'; return; }
+  if (!apiKey)    { err.textContent = 'Please enter the API key.'; return; }
 
   // Validate new PIN if provided
   if (teacherPin) {
-    if (!/^\d{4}$/.test(teacherPin)) {
+    if (!/^[0-9]{4}$/.test(teacherPin)) {
       err.textContent = 'Teacher PIN must be exactly 4 digits.'; return;
     }
     localStorage.setItem('bso-teacher-pin', teacherPin);
@@ -781,7 +791,7 @@ function saveSetup() {
     err.textContent = 'Please set a 4-digit teacher PIN.'; return;
   }
 
-  CFG = { room, scriptUrl, rosterUrl };
+  CFG = { room, scriptUrl, rosterUrl, apiKey };
   localStorage.setItem('bso-config', JSON.stringify(CFG));
   err.textContent = '';
   startApp();
@@ -793,7 +803,7 @@ function saveSetup() {
 async function loadRoster() {
   // Use JSONP to avoid CORS issues with Apps Script
   try {
-    const data = await fetchViaJsonp(`${CFG.rosterUrl}?action=getRoster`);
+    const data = await fetchViaJsonp(`${CFG.rosterUrl}?action=getRoster&key=${encodeURIComponent(CFG.apiKey || '')}`);
     if (data && data.roster) {
       roster = data.roster;
       await dbPut('state', { key: 'roster', value: roster });
@@ -983,7 +993,8 @@ async function flushQueue() {
   for (const item of pending) {
     try {
       // No Content-Type header — avoids CORS preflight rejection by Apps Script
-      const resp = await fetch(CFG.scriptUrl, {
+      const url  = `${CFG.scriptUrl}?key=${encodeURIComponent(CFG.apiKey || '')}`;
+      const resp = await fetch(url, {
         method: 'POST',
         body: JSON.stringify(item)
       });
