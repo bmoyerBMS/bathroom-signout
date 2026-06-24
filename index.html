@@ -337,21 +337,20 @@
     .btn-secondary:hover { border-color: var(--accent); color: var(--text); }
 
     .settings-btn {
-      position: absolute;
-      bottom: 1.25rem;
-      right: 1.5rem;
       background: transparent;
-      border: none;
+      border: 1px solid var(--border);
       color: var(--muted);
-      font-size: 1.2rem;
+      font-size: 0.8rem;
       cursor: pointer;
-      padding: 0.5rem;
-      border-radius: 8px;
-      transition: color 0.2s, background 0.2s;
-      line-height: 1;
-      opacity: 0.4;
+      padding: 0.35rem 0.9rem;
+      border-radius: 20px;
+      transition: color 0.2s, background 0.2s, border-color 0.2s;
+      line-height: 1.4;
+      opacity: 0.5;
+      letter-spacing: 0.05em;
+      margin-top: 0.5rem;
     }
-    .settings-btn:hover { color: var(--text); opacity: 1; background: var(--surface); }
+    .settings-btn:hover { color: var(--text); opacity: 1; border-color: var(--muted); }
 
     .test-result {
       font-size: 0.82rem;
@@ -521,8 +520,6 @@
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-label">Online</span>
   </div>
-  <button class="settings-btn" id="settings-btn" onclick="settingsTap()" title="Settings">⚙</button>
-
   <div class="app-title">Bathroom Sign-Out</div>
 
   <div class="pin-display" id="pin-display">
@@ -547,6 +544,7 @@
   </div>
 
   <div class="hint" id="hint"></div>
+  <button class="settings-btn" id="settings-btn" onclick="settingsTap()" title="Settings">⚙ Settings</button>
 </div>
 
 <!-- ── SIGNED OUT DISPLAY ── -->
@@ -1057,7 +1055,8 @@ function fmtTime(d) {
 async function signBackIn() {
   if (!currentlyOut) return;
   const now      = new Date();
-  const duration = Math.round((now - new Date(currentlyOut.timeOut)) / 60000);
+  const totalSec = Math.round((now - new Date(currentlyOut.timeOut)) / 1000);
+  const duration = `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, '0')}`;
   const { pin, name, tripId } = currentlyOut;
   await logEvent({ pin, name, type: 'IN', time: now.toISOString(), tripId, room: CFG.room, duration });
   currentlyOut = null;
