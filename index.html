@@ -342,15 +342,16 @@
       right: 1.5rem;
       background: transparent;
       border: none;
-      color: var(--border);
+      color: var(--muted);
       font-size: 1.2rem;
       cursor: pointer;
       padding: 0.5rem;
       border-radius: 8px;
-      transition: color 0.2s;
+      transition: color 0.2s, background 0.2s;
       line-height: 1;
+      opacity: 0.4;
     }
-    .settings-btn:hover { color: var(--muted); }
+    .settings-btn:hover { color: var(--text); opacity: 1; background: var(--surface); }
 
     .test-result {
       font-size: 0.82rem;
