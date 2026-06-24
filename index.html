@@ -783,20 +783,49 @@ async function flushQueue() {
   if (!navigator.onLine || !CFG.scriptUrl) return;
   const items = await dbGetAll('queue');
   const pending = items.filter(i => !i.synced);
+  if (pending.length === 0) return;
+
+  setSyncStatus(`Syncing ${pending.length} record(s)...`, 'syncing');
+
+  let successCount = 0;
   for (const item of pending) {
     try {
+      // No Content-Type header — avoids CORS preflight rejection by Apps Script
       const resp = await fetch(CFG.scriptUrl, {
         method: 'POST',
-        body: JSON.stringify(item),
-        headers: { 'Content-Type': 'application/json' }
+        body: JSON.stringify(item)
       });
-      if (resp.ok) {
+      const text = await resp.text();
+      let result;
+      try { result = JSON.parse(text); } catch(e) { result = { status: 'parse-error', raw: text.slice(0, 80) }; }
+
+      if (resp.ok && result.status === 'ok') {
         await dbDelete('queue', item.id);
+        successCount++;
+      } else {
+        setSyncStatus(`Sync error: ${result.message || result.raw || resp.status}`, 'error');
+        break;
       }
     } catch (e) {
-      break; // Still offline, stop trying
+      setSyncStatus(`Network error: ${e.message}`, 'error');
+      break;
     }
   }
+
+  if (successCount > 0) {
+    setSyncStatus(`✓ Synced ${successCount} record(s) to sheet`, 'ok');
+    setTimeout(() => setSyncStatus('', ''), 4000);
+  }
+}
+
+function setSyncStatus(msg, type) {
+  // Show sync messages in the hint area if keypad is visible, otherwise console
+  const hintEl = document.getElementById('hint');
+  if (hintEl && !document.getElementById('screen-keypad').classList.contains('hidden')) {
+    hintEl.textContent = msg;
+    hintEl.className = 'hint' + (type === 'error' ? ' error' : '');
+  }
+  console.log('[SYNC]', msg);
 }
 
 // ─────────────────────────────────────────────
