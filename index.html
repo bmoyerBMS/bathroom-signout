@@ -295,6 +295,45 @@
       font-size: 0.85rem;
       min-height: 1.1rem;
     }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 0.75rem 2rem;
+      width: 100%;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--text); }
+
+    .settings-btn {
+      position: absolute;
+      bottom: 1.25rem;
+      right: 1.5rem;
+      background: transparent;
+      border: none;
+      color: var(--border);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: 8px;
+      transition: color 0.2s;
+      line-height: 1;
+    }
+    .settings-btn:hover { color: var(--muted); }
+
+    .test-result {
+      font-size: 0.82rem;
+      min-height: 1.1rem;
+      color: var(--muted);
+    }
+    .test-result.ok  { color: var(--success); }
+    .test-result.err { color: var(--danger); }
   </style>
 </head>
 <body>
@@ -302,7 +341,7 @@
 <!-- ── SETUP SCREEN (first run) ── -->
 <div class="screen hidden" id="screen-setup">
   <div class="setup-title">Setup</div>
-  <p style="color:var(--muted);font-size:0.9rem;text-align:center">Enter your classroom info to get started. You only need to do this once.</p>
+  <p style="color:var(--muted);font-size:0.9rem;text-align:center">Enter your classroom info. You can return here anytime by tapping ⚙ three times.</p>
 
   <div class="setup-field">
     <label>Room Name or Number</label>
@@ -311,15 +350,16 @@
 
   <div class="setup-field">
     <label>Apps Script Web App URL</label>
-    <input type="url" id="setup-url" placeholder="https://script.google.com/macros/s/..." />
+    <input type="url" id="setup-url" placeholder="https://script.google.com/macros/s/.../exec" />
   </div>
 
   <div class="setup-field">
-    <label>Roster Sheet URL</label>
-    <input type="url" id="setup-roster-url" placeholder="https://script.google.com/macros/s/..." />
-    <span style="color:var(--muted);font-size:0.75rem">Same URL as above if using one deployment</span>
+    <label>Roster URL (usually same as above)</label>
+    <input type="url" id="setup-roster-url" placeholder="https://script.google.com/macros/s/.../exec" />
   </div>
 
+  <div class="test-result" id="test-result"></div>
+  <button class="btn-secondary" onclick="testConnection()">Test Connection</button>
   <div class="setup-error" id="setup-error"></div>
   <button class="btn-primary" onclick="saveSetup()">Save & Start</button>
 </div>
@@ -331,6 +371,7 @@
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-label">Online</span>
   </div>
+  <button class="settings-btn" id="settings-btn" onclick="settingsTap()" title="Settings">⚙</button>
 
   <div class="app-title">Bathroom Sign-Out</div>
 
@@ -458,6 +499,58 @@ function dbDelete(store, key) {
 // ─────────────────────────────────────────────
 //  SETUP
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+//  SETTINGS (tap gear 3x to open)
+// ─────────────────────────────────────────────
+let settingsTapCount = 0;
+let settingsTapTimer;
+
+function settingsTap() {
+  settingsTapCount++;
+  clearTimeout(settingsTapTimer);
+  settingsTapTimer = setTimeout(() => { settingsTapCount = 0; }, 1500);
+  if (settingsTapCount >= 3) {
+    settingsTapCount = 0;
+    openSetup();
+  }
+}
+
+function openSetup() {
+  // Pre-fill with currently saved values so user can see and edit them
+  const saved = localStorage.getItem('bso-config');
+  if (saved) {
+    const cfg = JSON.parse(saved);
+    document.getElementById('setup-room').value       = cfg.room       || '';
+    document.getElementById('setup-url').value        = cfg.scriptUrl  || '';
+    document.getElementById('setup-roster-url').value = cfg.rosterUrl  || '';
+  }
+  document.getElementById('setup-error').textContent  = '';
+  document.getElementById('test-result').textContent  = '';
+  document.getElementById('test-result').className    = 'test-result';
+  showScreen('screen-setup');
+}
+
+async function testConnection() {
+  const url = document.getElementById('setup-url').value.trim();
+  const res  = document.getElementById('test-result');
+  if (!url) { res.textContent = 'Enter a URL first.'; res.className = 'test-result err'; return; }
+  res.textContent = 'Testing...'; res.className = 'test-result';
+  try {
+    const data = await fetchViaJsonp(url + '?action=getRoster');
+    if (data && data.roster) {
+      const count = Object.keys(data.roster).length;
+      res.textContent = `✓ Connected! Found ${count} student${count !== 1 ? 's' : ''} in roster.`;
+      res.className = 'test-result ok';
+    } else {
+      res.textContent = '⚠ Connected but roster is empty or unreadable.';
+      res.className = 'test-result err';
+    }
+  } catch (e) {
+    res.textContent = '✗ Could not reach that URL. Check it ends in /exec.';
+    res.className = 'test-result err';
+  }
+}
+
 function saveSetup() {
   const room      = document.getElementById('setup-room').value.trim();
   const scriptUrl = document.getElementById('setup-url').value.trim();
