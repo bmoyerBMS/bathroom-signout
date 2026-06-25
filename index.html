@@ -1055,8 +1055,7 @@ function fmtTime(d) {
 async function signBackIn() {
   if (!currentlyOut) return;
   const now      = new Date();
-  const totalSec = Math.round((now - new Date(currentlyOut.timeOut)) / 1000);
-  const duration = `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, '0')}`;
+  const duration = Math.round((now - new Date(currentlyOut.timeOut)) / 1000);
   const { pin, name, tripId } = currentlyOut;
   await logEvent({ pin, name, type: 'IN', time: now.toISOString(), tripId, room: CFG.room, duration });
   currentlyOut = null;
